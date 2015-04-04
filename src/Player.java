@@ -54,6 +54,7 @@ class Player
 	{
         
         boolean readyToBomb = true;
+        int loop = 1; //setting this variable will instruct the while loop to always place a bomb on the first loop
         // game loop
         while (true)
         {		
@@ -75,7 +76,7 @@ class Player
             int rounds = in.nextInt(); // number of rounds left before the end of the game
             int bombs = in.nextInt(); // number of bombs left
             
-            readyToBomb = (rounds <= (surveillanceNodeCount * BOMB_DELAY+1));            
+            readyToBomb = (rounds <= (BOMB_DELAY+1) + (surveillanceNodeCount-1) || loop == 1);            
             
             if (readyToBomb)
             {
@@ -89,7 +90,8 @@ class Player
 				
 			}         
 
-            System.out.println(message);					
+            System.out.println(message);
+            loop = 0; //nulls the "always bomb on first loop" flag					
 		}
     }
     

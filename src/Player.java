@@ -13,7 +13,7 @@ class Player
 	private int width;
 	private int height;
 	private final int RANGE = 3; //bomb destruction range in node distance from bomb node
-	private final int BOMB_DELAY = 2;
+	private final int BOMB_DELAY = 3;
 	private String message;
 	 
 	Scanner in = new Scanner(System.in);
@@ -52,55 +52,45 @@ class Player
 	
 	private void play()
 	{
-        int bombDelay = 0;
+        
         boolean readyToBomb = true;
         // game loop
         while (true)
-        {
-			if (bombDelay > 0)
-			{
-				readyToBomb = false;
-			}
+        {		
 			
-			else
-			{
-				readyToBomb = true;
+			int surveillanceNodeCount = 0;
+			//update the life of all nodes in the grid
+            for (Node n: grid)
+            {
+				n.updateLife();				
+				if(n.getType().equals("@") && !(n.getLife() < BOMB_DELAY+1))
+				{
+					surveillanceNodeCount++;
+				}
 			}
 			
 			printGrid(); //displays the updated grid
-			buildHeatMap(); //builds and displays the heatMap
+			buildHeatMap(); //builds and displays the heatMap			 
 			
             int rounds = in.nextInt(); // number of rounds left before the end of the game
             int bombs = in.nextInt(); // number of bombs left
             
+            readyToBomb = (rounds <= (surveillanceNodeCount * BOMB_DELAY+1));            
+            
             if (readyToBomb)
             {
 				//find the best placement from the heatMap
-				message = setBestPlacement(); //this also sets the life of 'death nodes' to the bomb delay
-				bombDelay = BOMB_DELAY;	
-				
-							
+				message = setBestPlacement(); //this also sets the life of 'death nodes' to the bomb delay							
 			}   
 			
 			else
 			{
 				message = "WAIT";
-				if(bombDelay > 0)
-				{
-					bombDelay--;
-				}
+				
 			}         
 
-            System.out.println(message);
-            
-            //update the life of all nodes in the grid
-            for (Node n: grid)
-            {
-				n.updateLife();
-			}
-			
-			
-        }
+            System.out.println(message);					
+		}
     }
     
     private void printGrid()
@@ -149,7 +139,8 @@ class Player
 			if (grid.get(i).getType().equals("@") || grid.get(i).getType().equals("#"))
 			{
 				nodeCount = 0;
-			}
+			}			
+			
 			
 			else
 			{			
@@ -188,6 +179,12 @@ class Player
 			{
                 System.err.println();
 				return count;
+			}
+			
+			//don't count nodes that are already covered by an existing bomb
+			else if (grid.get(i).getLife() < BOMB_DELAY+1)
+			{
+				//do nothing;
 			}
 			
 			else if (grid.get(i).getType().equals("@"))

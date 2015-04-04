@@ -9,10 +9,12 @@ class Player
 	 * cross centred on the indexed node
 	 */
 	private List<Integer> heatMap = new ArrayList<Integer>();
-	private String[] grid;
+	private List<Node> grid = new ArrayList<Node>();
 	private int width;
 	private int height;
-	private final int RANGE = 4;
+	private final int RANGE = 3; //bomb destruction range in node distance from bomb node
+	private final int BOMB_DELAY = 2;
+	private String message;
 	 
 	Scanner in = new Scanner(System.in);
 
@@ -32,7 +34,7 @@ class Player
         width = in.nextInt(); // width of the firewall grid
         height = in.nextInt(); // height of the firewall grid
         
-        grid = new String[width * height]; // array to hold grid character (String) values
+        
         int index = 0; //index for the grid array
         for (int i = 0; i < height; i++)
         {
@@ -40,28 +42,64 @@ class Player
             String[] rowCharacters = mapRow.split("");
             for (String s: rowCharacters)
             {
-				grid[index] = s;
+				grid.add(new Node(index, s));
 				index++;
 			}            
         }
         
-        printGrid();
+        
 	}
 	
 	private void play()
 	{
+        int bombDelay = 0;
+        boolean readyToBomb = true;
         // game loop
         while (true)
         {
-			buildHeatMap();
+			if (bombDelay > 0)
+			{
+				readyToBomb = false;
+			}
+			
+			else
+			{
+				readyToBomb = true;
+			}
+			
+			printGrid(); //displays the updated grid
+			buildHeatMap(); //builds and displays the heatMap
 			
             int rounds = in.nextInt(); // number of rounds left before the end of the game
             int bombs = in.nextInt(); // number of bombs left
+            
+            if (readyToBomb)
+            {
+				//find the best placement from the heatMap
+				message = setBestPlacement(); //this also sets the life of 'death nodes' to the bomb delay
+				bombDelay = BOMB_DELAY;	
+				
+							
+			}   
+			
+			else
+			{
+				message = "WAIT";
+				if(bombDelay > 0)
+				{
+					bombDelay--;
+				}
+			}         
 
-            // Write an action using System.out.println()
-            // To debug: System.err.println("Debug messages...");
-
-            System.out.println("3 0");
+            System.out.println(message);
+            
+            //update the life of all nodes in the grid
+            for (Node n: grid)
+            {
+				n.updateLife();
+			}
+			
+			
         }
     }
     
@@ -71,11 +109,11 @@ class Player
         System.err.println();
         
         int index = 0;
-        while (index < grid.length)
+        while (index < grid.size())
         {
 			for (int i = 0; i < width; i++)
             {
-			    System.err.print(grid[index]);
+			    System.err.print(grid.get(index));
 			    index++;
 		    }
 		    System.err.println();
@@ -89,7 +127,7 @@ class Player
         System.err.println();
 		
 		int index = 0;
-        while (index < grid.length)
+        while (index < grid.size())
         {
 			for (int i = 0; i < width; i++)
             {
@@ -103,11 +141,12 @@ class Player
 	
 	private void buildHeatMap()
 	{
-		for (int i = 0; i < grid.length; i++)
+		heatMap.clear();
+		for (int i = 0; i < grid.size(); i++)
 		{
 			int nodeCount = 0;
 			
-			if (grid[i].equals("@"))
+			if (grid.get(i).getType().equals("@") || grid.get(i).getType().equals("#"))
 			{
 				nodeCount = 0;
 			}
@@ -141,17 +180,17 @@ class Player
 			
 		int loop = 1;
 		
-		while ((i >= 0 && i < (width * height)) && loop < RANGE)
+		while ((i >= 0 && i < (width * height)) && loop <= RANGE)
 		{			
 			//System.err.println("Checking location " + i);
 			//if an indestructible node is encoutered, return the current count
-			if (grid[i].equals("#"))
+			if (grid.get(i).getType().equals("#"))
 			{
                 System.err.println();
 				return count;
 			}
 			
-			else if (grid[i].equals("@"))
+			else if (grid.get(i).getType().equals("@"))
 			{
 				count++;
 			}
@@ -167,24 +206,159 @@ class Player
 		//System.err.println();
 		
 		return count;
-	}
+	}	
 	
-	private int lookDown(int i)
+	
+	private String setBestPlacement()
 	{
-		return i;
+		//find the best placement from the heatMap
+		int bestCount = 0;
+		int bestIndex = 0;
+		int index = 0;
+		
+		for (Integer i: heatMap)
+		{
+			if(i > bestCount)
+			{
+				bestCount = (int) i;
+				bestIndex = index;
+			}
+			index++;
+		}
+		
+		String s = convertIndexToString(bestIndex);				
+		
+		//need to set Life of nodes around bestIndex. 
+		List<Node> deathNodes = getDeathNodes(bestIndex);  
+		for (Node n: deathNodes)
+		{
+			n.setLife(BOMB_DELAY);
+		}
+		
+		return s;
 	}
 	
-	private int lookLeft(int i)
+	private String convertIndexToString(int index)
 	{
-		return i;
+		int x = index % width;
+		int y = index / width;
+		
+		return x + " " + y;
 	}
 	
-	private int lookRight(int i)
+	private List<Node> getDeathNodes(int bestIndex)
 	{
-		return i;
+		System.err.println("Best index is " + bestIndex);
+		
+		List<Node> deathNodes = new ArrayList<Node>();
+		int[] increments = {-1, +1, -width, width};		
+		outerLoop:
+		for (int inc: increments)
+		{			
+			int loop = 0;
+			int i = inc;
+			//lookup
+			while (loop < RANGE)
+			{
+				//if out of grid range exit loop and move to the next increments (direction)
+				if((bestIndex+i) < 0 || (bestIndex+i) >= (width*height))
+				{
+					System.err.println("Can't find index " + (bestIndex+i));
+					continue outerLoop;
+				}
+				
+				//if changing rows whilst moving left or right, exit loop and move to the next increments (direction)
+				if((Math.abs(i) < width) && (((bestIndex+i) / width) != (bestIndex / width)))
+				{
+					System.err.println("Can't use index " + (bestIndex+i));
+					continue outerLoop;
+				}					
+				
+				Node lookedAt = grid.get(bestIndex+i);
+				if (lookedAt.getType().equals("#"))
+				{
+					System.err.println("Ran into indestructible at " + (bestIndex+i));
+					continue outerLoop;
+				}
+				else if (lookedAt.getType().equals("@"))
+				{
+					System.err.println("Found surveillance node at " + (bestIndex+i));
+					deathNodes.add(lookedAt);
+				}
+				else
+				{
+					System.err.println("Looked at " + (bestIndex+i) + ", is empty");
+				}
+				i += inc;
+				loop++;
+			}
+		}
+				
+		printDeathNodes(deathNodes);
+		return deathNodes;
 	}
-
 	
-			 
+	private void printDeathNodes(List<Node> deathNodes)
+	{
+		System.err.println();
+		System.err.print("Death Nodes: ");
+		
+		for (Node n: deathNodes)
+		{
+			System.err.print(n.getId()+" , ");
+		}
+		System.err.println();
+	}					 
 			
 }
+
+class Node
+{
+	private int id;
+	private String type;
+	private int life;
+	
+	public Node (int id, String type)
+	{
+		this.id = id;
+		this.type = type;
+		this.life = Integer.MAX_VALUE;
+	}
+	
+	public int getId()
+	{
+		return id;
+	}
+	
+	public String getType()
+	{
+		return type;
+	}
+	
+	public int getLife()
+	{
+		return life;
+	}
+	
+	public void setLife(int life)
+	{
+		this.life = life;
+	}
+	
+	public void updateLife()
+	{
+		this.life--;
+		if (this.life == 0)
+		{
+			this.type = ".";
+			this.life = Integer.MAX_VALUE;
+		}
+	}
+	
+	@Override
+	public String toString()
+	{
+		return type;
+	}
+}
+
